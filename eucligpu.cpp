@@ -6,7 +6,7 @@
 #include "OpenCLUtils.hpp"
 
 #define KERNELNAME "euclidean"
-// TODO right kernel source
+// TODO colocar o kernel como requerido
 #define KERNELSRC "void kernel " KERNELNAME "(global const unsigned char* A, " \
   "  global unsigned char* B) {\n"                                           \
   "\n"                                                                       \
@@ -14,40 +14,57 @@
   "  B[taskIndex] = A[taskIndex] + A[taskIndex];\n"                          \
   "}"
 
+class ExecuteOpenCL {
+public:
+
+  ExecuteOpenCL(const char *filename) {
+
+    int imageWidth, imageHeight, imageChannels;
+    image = stbi_load(filename, &imageWidth, &imageHeight, &imageChannels, 0);
+
+    const int imageSize = imageWidth * imageHeight * imageChannels;
+    output = new unsigned char[imageSize];
+    executeOpenCL(KERNELNAME, KERNELSRC, image, imageSize, output, imageSize);
+
+    for (int i = 0; i < imageSize; ++i) {
+      if (static_cast<int>(output[i]) != 2) {
+        std::cout << "Verification failed! result #" << 2 << ", " << 
+          static_cast<int>(output[i]) << " != 2 (expected)." << std::endl;
+
+        throw std::exception();
+      }
+    }
+
+    std::cout << "All right!" << std::endl;
+  };
+
+  ~ExecuteOpenCL() {
+
+    if (image != nullptr)
+      stbi_image_free(image);
+    if (output != nullptr)
+      free(output);
+
+  };
+
+private:
+
+  unsigned char *image;
+  unsigned char *output;
+
+};
+
 
 int main(int argc, char const *argv[]) {
-  /*
   if (argc < 2) {
-      std::cerr << "You have to pass 1 argument to the program, but none was passed.";
+      std::cerr << "You have to pass 1 argument to the program, but none was passed." << std::endl;
       return -1;
   }
 
   const char *filename = argv[1];
 
-  int imageWidth, imageHeight, imageChannels;
-  unsigned char *image = stbi_load(filename, &imageWidth, &imageHeight, &imageChannels, 0);
-
-  const int imageSize = imageWidth * imageHeight;
-  unsigned char *output = new unsigned char[imageSize];
-  executeOpenCL(KERNELNAME, KERNELSRC, image, imageSize, output, imageSize);
-  stbi_image_free(image);
-  */
-
-  const unsigned char test[] = {1,1,1,1,1,1,1,1,1,1};
-  unsigned char *output = new unsigned char[10];
-
-  executeOpenCL(KERNELNAME, KERNELSRC, test, 10, output, 10);
-
-  for (std::size_t i = 0; i < 10; ++i) {
-    if (static_cast<int>(output[i]) != 2) {
-      std::cout << "Verification failed! result #" << 1 << ", " << 
-        output[i] << " != " << i << " (expected)." << std::endl;
-
-      return -1;
-    }
-  }
-
-  std::cout << "All right!" << std::endl;
+  // Executa com o destrutor seguro para desalocar todos os ponteiros criados.
+  ExecuteOpenCL exec(filename);
 
   return 0;
 }
