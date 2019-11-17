@@ -31,7 +31,7 @@ public:
     m_output = new unsigned char[imageSize];
     assert(m_output != nullptr);
 
-    executeOpenCL(KERNELNAME, KERNELSRC, m_image, imageSize, m_output, imageSize);
+    OpenCLUtils::executeOpenCL(KERNELNAME, KERNELSRC, m_image, imageSize, m_output, imageSize);
 
     for (int i = 0; i < imageSize; ++i) {
       if (static_cast<int>(m_output[i]) != 2) {

@@ -4,6 +4,9 @@
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
 #include <CL/cl.hpp>
 
+namespace OpenCLUtils {
+
+
 std::vector<cl::Device> getDevices() {
   std::vector<cl::Platform> platforms;
   cl::Platform::get(&platforms);
@@ -85,3 +88,6 @@ void executeOpenCL(const std::string& kernelName, const std::string& kernelSourc
   // Retorna o resultado da computação na GPU para o dataOutput.
   queue.enqueueReadBuffer(outputBuffer, CL_TRUE, 0, sizeof(unsigned char) * dataOutputSize, dataOutput);
 }
+
+
+} // namespace OpenCLUtils
