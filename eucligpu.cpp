@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -6,13 +7,6 @@
 #include "OpenCLUtils.hpp"
 
 #define KERNELNAME "euclidean"
-// TODO colocar o kernel como requerido
-#define KERNELSRC "void kernel " KERNELNAME "(global const unsigned char* A, " \
-  "  global unsigned char* B) {\n"                                           \
-  "\n"                                                                       \
-  "  unsigned long taskIndex = get_global_id(0);\n"                          \
-  "  B[taskIndex] = A[taskIndex] + A[taskIndex];\n"                          \
-  "}"
 
 class ExecuteOpenCL {
 public:
@@ -24,7 +18,7 @@ public:
 
     const int imageSize = imageWidth * imageHeight * imageChannels;
     output = new unsigned char[imageSize];
-    executeOpenCL(KERNELNAME, KERNELSRC, image, imageSize, output, imageSize);
+    executeOpenCL(KERNELNAME, ExecuteOpenCL::readKernel(), image, imageSize, output, imageSize);
 
     for (int i = 0; i < imageSize; ++i) {
       if (static_cast<int>(output[i]) != 2) {
@@ -51,6 +45,16 @@ private:
 
   unsigned char *image;
   unsigned char *output;
+
+  static std::string readKernel() {
+    std::ifstream input("kernel.cl");
+    std::string source;
+    input.seekg(0, std::ios::end);
+    source.reserve(input.tellg());
+    input.seekg(0, std::ios::beg);
+    source.assign((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    return source;
+  }
 
 };
 
