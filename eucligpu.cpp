@@ -11,40 +11,45 @@
 class ExecuteOpenCL {
 public:
 
-  ExecuteOpenCL(const char *filename) {
+  ExecuteOpenCL(const std::string& filename) : m_filename(filename), m_image(nullptr), m_output(nullptr) {
+  };
 
+  void execute() {
     int imageWidth, imageHeight, imageChannels;
-    image = stbi_load(filename, &imageWidth, &imageHeight, &imageChannels, 0);
+    m_image = stbi_load(m_filename.c_str(), &imageWidth, &imageHeight, &imageChannels, 0);
+    if (m_image == nullptr)
+      throw std::runtime_error(
+        "The image could not be loaded, please check if the filename is corrected");
 
     const int imageSize = imageWidth * imageHeight * imageChannels;
-    output = new unsigned char[imageSize];
-    executeOpenCL(KERNELNAME, ExecuteOpenCL::readKernel(), image, imageSize, output, imageSize);
+    m_output = new unsigned char[imageSize];
+    assert(m_output != nullptr);
+
+    OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteOpenCL::readKernel(), m_image, imageSize, m_output, imageSize);
 
     for (int i = 0; i < imageSize; ++i) {
-      if (static_cast<int>(output[i]) != 2) {
-        std::cout << "Verification failed! result #" << 2 << ", " << 
-          static_cast<int>(output[i]) << " != 2 (expected)." << std::endl;
-
-        throw std::exception();
+      if (static_cast<int>(m_output[i]) != 2) {
+        throw std::runtime_error("Verification failed! result #2 , " +
+          std::to_string(static_cast<int>(m_output[i])) + " != 2 (expected).");
       }
     }
 
     std::cout << "All right!" << std::endl;
-  };
+  }
 
   ~ExecuteOpenCL() {
-
-    if (image != nullptr)
-      stbi_image_free(image);
-    if (output != nullptr)
-      free(output);
+    if (m_image != nullptr)
+      stbi_image_free(m_image);
+    
+    if (m_output != nullptr)
+      free(m_output);
 
   };
 
 private:
-
-  unsigned char *image;
-  unsigned char *output;
+  const std::string m_filename;
+  unsigned char *m_image;
+  unsigned char *m_output;
 
   static std::string readKernel() {
     std::ifstream input("kernel.cl");
@@ -55,7 +60,6 @@ private:
     source.assign((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     return source;
   }
-
 };
 
 
@@ -65,10 +69,15 @@ int main(int argc, char const *argv[]) {
       return -1;
   }
 
-  const char *filename = argv[1];
-
-  // Executa com o destrutor seguro para desalocar todos os ponteiros criados.
-  ExecuteOpenCL exec(filename);
+  const std::string filename(argv[1]);
+  
+  try {
+    // Executa com o destrutor seguro para desalocar todos os ponteiros criados.
+    ExecuteOpenCL exec(filename);
+    exec.execute();
+  } catch (const std::runtime_error& e) {
+    throw e;
+  }
 
   return 0;
 }

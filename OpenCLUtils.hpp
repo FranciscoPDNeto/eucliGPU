@@ -4,13 +4,15 @@
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
 #include <CL/cl.hpp>
 
+namespace OpenCLUtils {
+
+
 std::vector<cl::Device> getDevices() {
   std::vector<cl::Platform> platforms;
   cl::Platform::get(&platforms);
 
   if (platforms.size() == 0) {
-    std::cerr << " No platforms found. Check OpenCL installation!\n";
-    throw std::runtime_error("There is no platforms available!");
+    throw std::runtime_error("There is no platforms available. Check OpenCL installation!");
   }
 
   cl::Platform defaultPlatform = platforms[1];
@@ -20,8 +22,7 @@ std::vector<cl::Device> getDevices() {
   std::vector<cl::Device> devices;
   defaultPlatform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
   if (devices.size() == 0) {
-    std::cerr << " No devices found. Check OpenCL installation!\n";
-    throw std::runtime_error("There is no devices available!");
+    throw std::runtime_error("There is no devices available. Check OpenCL installation!");
   }
 
   return devices;
@@ -31,8 +32,8 @@ cl::Device getDevice(int deviceId) {
   std::vector<cl::Device> devices(getDevices());
 
   if (deviceId > static_cast<int>(devices.size())) {
-    std::cerr << "There is just " << devices.size() << " devices available, so there is no device id " << deviceId;
-    throw std::exception();
+    throw std::runtime_error("There is just " + std::to_string(devices.size()) + 
+      " devices available, so there is no device id " + std::to_string(deviceId));
   }
 
   const cl::Device device = devices[deviceId];
@@ -67,10 +68,8 @@ void executeOpenCL(const std::string& kernelName, const std::string& kernelSourc
   sources.push_back({ kernelSource.c_str(), kernelSource.length() });
   cl::Program program(context, sources);
   if (program.build({ defaultDevice }) != CL_SUCCESS) {
-    std::cerr << "Error building: "
-              << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(defaultDevice)
-              << std::endl;
-    throw std::exception();
+    throw std::runtime_error("Error building: "
+      + program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(defaultDevice));
   }
 
   cl::Buffer inputBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeof(unsigned char) * dataInputSize, nullptr);
@@ -89,3 +88,6 @@ void executeOpenCL(const std::string& kernelName, const std::string& kernelSourc
   // Retorna o resultado da computação na GPU para o dataOutput.
   queue.enqueueReadBuffer(outputBuffer, CL_TRUE, 0, sizeof(unsigned char) * dataOutputSize, dataOutput);
 }
+
+
+} // namespace OpenCLUtils
