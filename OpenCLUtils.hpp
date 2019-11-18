@@ -64,7 +64,7 @@ cl::Device userSelectDevice() {
 void executeOpenCL(const std::string &kernelName,
                    const std::string &kernelSource,
                    const unsigned char *dataInput, const int dataInputSize,
-                   unsigned char *dataOutput, const int dataOutputSize) {
+                   float *dataOutput, const int dataOutputSize) {
 
   const cl::Device defaultDevice = getDevice(0);
 
@@ -79,10 +79,16 @@ void executeOpenCL(const std::string &kernelName,
         program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(defaultDevice));
   }
 
+  // Estudando alterar para Image2D
+  /*
+  cl::ImageFormat format(CL_INTENSITY, CL_UNORM_INT8);
+  cl::Image2D image(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, format, imageWidth, 
+    imageHeight, imageWidth * sizeof(unsigned char), image);
+  */
   cl::Buffer inputBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                          sizeof(unsigned char) * dataInputSize, nullptr);
   cl::Buffer outputBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                          sizeof(unsigned char) * dataOutputSize, nullptr);
+                          sizeof(float) * dataOutputSize, nullptr);
 
   cl::CommandQueue queue(context, defaultDevice);
   queue.enqueueWriteBuffer(inputBuffer, CL_TRUE, 0,
@@ -96,7 +102,7 @@ void executeOpenCL(const std::string &kernelName,
 
   // Retorna o resultado da computação na GPU para o dataOutput.
   queue.enqueueReadBuffer(outputBuffer, CL_TRUE, 0,
-                          sizeof(unsigned char) * dataOutputSize, dataOutput);
+                          sizeof(float) * dataOutputSize, dataOutput);
 }
 
 } // namespace OpenCLUtils
