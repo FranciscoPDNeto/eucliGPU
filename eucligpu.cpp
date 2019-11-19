@@ -126,6 +126,8 @@ Neighborhood getNeighborhood(const UCImage *image, const Pixel& pixel) {
       continue;
 
     for (cl_int j = -1; i < 2; i++) {
+      if (j == 0 && i == 0)
+        continue;
       const cl_uint x = pixel.coord.x - j;
       if (x < 0 || x >= image->attrs.width)
         continue;
