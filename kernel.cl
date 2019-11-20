@@ -114,7 +114,7 @@ bool isBackgroudByPixel(const uint4 pixel) {
  * \brief Retorna a lista de valores vizinhos ao pixel na imagem.
  * A vizinhança utilizada é a simples, vizinhança direta na janela 3x3.
 */
-Neighborhood getNeighborhood(const unsigned char *image, const ImageAttrs attrs, const uint4 pixel) {
+Neighborhood getNeighborhood(const unsigned char *image, __global const ImageAttrs attrs, const uint4 pixel) {
   Neighborhood neighborhood;
   neighborhood.size = 0;
   for (int i = -1; i < 2; i++) {
@@ -151,13 +151,25 @@ typedef struct {
 } VoronoiDiagramMap;
 */
 
-int get_hash(const VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 *key) {
+int get_hash(__global const VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 key) {
   // Pega o valor do indice da coordenada.
-  return (key->z %diagramSize);
+  return (key.z %diagramSize);
 }
 
-VoronoiDiagramMapEntry getVoronoiEntry(const VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 *coord) {
-  return map[get_hash(map, diagramSize, coord)];
+__global VoronoiDiagramMapEntry *getVoronoiEntry(__global VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 coord) {
+  return &map[get_hash(map, diagramSize, coord)];
+}
+
+uint4 getVoronoiValue(__global VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 coord) {
+  return getVoronoiEntry(map, diagramSize, coord)->nearestBackground;
+}
+
+__global uint4 *getVoronoiValuePtr(__global VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 coord) {
+  return &(getVoronoiEntry(map, diagramSize, coord)->nearestBackground);
+}
+
+bool compareCoords(const uint4 coord1, const uint4 coord2) {
+  return coord1.y == coord2.y && coord1.x == coord2.x && coord1.z == coord2.z;
 }
 
 void __kernel euclidean(
@@ -166,7 +178,8 @@ void __kernel euclidean(
   __global uint4 *pixelQueue,
   const unsigned int pixelQueueSize,
   __local uint4 *lpixelQueue,
-  __global VoronoiDiagramMapEntry *voronoi
+  __global VoronoiDiagramMapEntry *voronoi,
+  const unsigned int voronoiSize
 ) {
   // Wavefront propagation
   __local unsigned int localPixelQueueOffset;
@@ -184,6 +197,66 @@ void __kernel euclidean(
     (localPixelQueueSize/get_local_size(0)) 
     : 
     (localPixelQueueSize/get_local_size(0)) + (localPixelQueueSize%get_local_size(0));
+
+  uint exceededPixelSize = 0;
+  // o máximo de pixel excedido é a quantidade de pixels multiplicado pelo valor máximo de vizinhos
+  // q cada píxel pode ter.
+  uint4 exceededPixel[privatelPixelQueueSize*8];
+
+  for (int i = 0; i < privatelPixelQueueSize; i++) {
+    uint4 p = pixelQueue[i];
+    uint4 coordinateP = constructCoord(p.y, p.x, p.z);
+
+    Neighborhood neighborhood = getNeighborhood(image, imageAttrs, p);
+    for (int j = 0; j < neighborhood.size; j++) {
+      uint4 q = neighborhood.pixels[j];
+      uint4 coordinateQ = constructCoord(q.y, q.x, q.z);
+      do {
+        uint4 curVRQ = getVoronoiValue(voronoi, voronoiSize, coordinateQ);
+
+        if (euclideanDistance(q, getVoronoiValue(voronoi, voronoiSize, coordinateP)) < euclideanDistance(q, curVRQ)) {
+          uint4 old = atomic_cmpxchg(getVoronoiValuePtr(voronoi, voronoiSize, coordinateQ), 
+            curVRQ, getVoronoiValue(voronoi, voronoiSize, coordinateP));
+
+          if (compareCoords(old, curVRQ)) {
+            exceededPixel[exceededPixelSize++] = q;
+            break;
+          }
+        } else
+          break;
+      } while (true);
+    }
+  }
+
+  uint exceededPixelSizeQueue = exceededPixelSize;
+  while(exceededPixelSizeQueue > 0) {
+    uint exceededPixelSize = exceededPixelSizeQueue;
+    for (int i = 0; i < exceededPixelSize; i++) {
+      uint4 p = pixelQueue[i];
+      exceededPixelSizeQueue--;
+      uint4 coordinateP = constructCoord(p.y, p.x, p.z);
+
+      Neighborhood neighborhood = getNeighborhood(image, imageAttrs, p);
+      for (int j = 0; j < neighborhood.size; j++) {
+        uint4 q = neighborhood.pixels[j];
+        uint4 coordinateQ = constructCoord(q.y, q.x, q.z);
+        do {
+          uint4 curVRQ = getVoronoiValue(voronoi, voronoiSize, coordinateQ);
+
+          if (euclideanDistance(q, getVoronoiValue(voronoi, voronoiSize, coordinateP)) < euclideanDistance(q, curVRQ)) {
+            uint4 old = atomic_cmpxchg((volatile __global uint *)getVoronoiValuePtr(voronoi, voronoiSize, coordinateQ), 
+              curVRQ, getVoronoiValue(voronoi, voronoiSize, coordinateP));
+
+            if (compareCoords(old, curVRQ)) {
+              exceededPixel[exceededPixelSizeQueue++] = q;
+              break;
+            }
+          } else
+            break;
+        } while (true);
+      }
+    }
+  }
   
 
 }

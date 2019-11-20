@@ -264,6 +264,7 @@ void executeOpenCL(const std::string &kernelName,
   kernel.setArg(3, sizeof(unsigned int), &pixelQueueSize);
   kernel.setArg(4, cl::__local(pixelQueue.size()/localSize + pixelQueue.size()%localSize));
   kernel.setArg(5, outputVoronoiBuffer);
+  kernel.setArg(6, sizeof(unsigned int), &voronoi->sizeOfDiagram);
 
   errorCode = queue.enqueueNDRangeKernel(kernel, 0, image->attrs.size, localSize);
   if (errorCode != CL_SUCCESS)
