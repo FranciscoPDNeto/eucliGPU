@@ -23,6 +23,15 @@ Coordinate constructCoord(unsigned int y, unsigned int x, unsigned int imageWidt
   return coord;
 }
 
+Coordinate constructInvalidCoord() {
+  Coordinate coord;
+  coord.index = -1;
+  coord.y = -1;
+  coord.x = -1;
+
+  return coord;
+}
+
 /**
  * \brief Calcula a distância euclideana.
 */
@@ -52,7 +61,7 @@ typedef struct {
   Pixel pixels[8];
   // É unsigned char pois pode representar no máximo 8, então não é necessário
   // mais de um byte.
-  cl_uchar size;
+  cl_ushort size;
   
 } Neighborhood;
 
@@ -63,8 +72,8 @@ Neighborhood initNeighborhood() {
   return neighborhood;
 }
 
-void addNeighbor(Neighborhood neighborhood, Pixel pixel) {
-  neighborhood.pixels[neighborhood.size++] = pixel;
+void addNeighbor(Neighborhood *neighborhood, Pixel pixel) {
+  neighborhood->pixels[neighborhood->size++] = pixel;
 }
 
 Pixel getNeighbor(const Neighborhood neighborhood, const unsigned char index) {
@@ -104,9 +113,17 @@ bool isBackgroudByCoord(const UCImage *image, const Coordinate coord) {
   return getValueByCoord(image, coord) == 0;
 }
 
-Pixel getPixel(const UCImage *image, cl_int y, cl_int x) {
+Pixel getPixel(const UCImage *image, const Coordinate coordinate) {
+  return constructPixel(coordinate, isBackgroudByCoord(image, coordinate));
+}
+
+Pixel getPixelByCoord(const UCImage *image, cl_int y, cl_int x) {
   const Coordinate coord = constructCoord(y, x, image->attrs.width);
-  return constructPixel(coord, isBackgroudByCoord(image, coord));
+  return getPixel(image, coord);
+}
+
+bool isBackgroudByPixel(const Pixel pixel) {
+  return pixel.background;
 }
 
 /**
@@ -115,12 +132,13 @@ Pixel getPixel(const UCImage *image, cl_int y, cl_int x) {
 */
 Neighborhood getNeighborhood(const UCImage *image, const Pixel& pixel) {
   Neighborhood neighborhood;
+  neighborhood.size = 0;
   for (cl_int i = -1; i < 2; i++) {
     const cl_uint y = pixel.coord.y - i;
     if (y >= image->attrs.height)
       continue;
 
-    for (cl_int j = -1; i < 2; i++) {
+    for (cl_int j = -1; j < 2; j++) {
       if (j == 0 && i == 0)
         continue;
       const cl_uint x = pixel.coord.x - j;
@@ -128,7 +146,7 @@ Neighborhood getNeighborhood(const UCImage *image, const Pixel& pixel) {
         continue;
 
 
-      addNeighbor(neighborhood, getPixel(image, y, x));
+      addNeighbor(&neighborhood, getPixelByCoord(image, y, x));
     }
   }
   

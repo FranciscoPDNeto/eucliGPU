@@ -159,8 +159,27 @@ VoronoiDiagramMapEntry getVoronoiEntry(const VoronoiDiagramMapEntry *map, const 
 void __kernel euclidean(
   __global const unsigned char *image,
   __global const ImageAttrs *imageAttrs,
-  __local Pixel *pixelQueue,
-  __local VoronoiDiagramMapEntry *voronoi
+  __global Pixel *pixelQueue,
+  const unsigned int pixelQueueSize,
+  __local Pixel *lpixelQueue,
+  __global VoronoiDiagramMapEntry *voronoi
 ) {
   // Wavefront propagation
+  __local unsigned int localPixelQueueOffset;
+  localPixelQueueOffset = get_group_id(0)*(pixelQueueSize/get_num_groups(0));
+  __local unsigned int localPixelQueueSize;
+  localPixelQueueSize = get_group_id(0) != (get_num_groups(0) - 1) ? 
+    (pixelQueueSize/get_num_groups(0)) 
+    : 
+    (pixelQueueSize/get_num_groups(0)) + (pixelQueueSize%get_num_groups(0));
+  
+  async_work_group_copy(lpixelQueue, (Pixel *)(pixelQueue+localPixelQueueOffset*localPixelQueueSize), localPixelQueueSize, 0);
+
+  __private unsigned int privatePixelQueueOffset = get_local_id(0)*(localPixelQueueSize/get_local_size(0));
+  __private unsigned int privatelPixelQueueSize = get_local_id(0) != (get_local_size(0) - 1) ? 
+    (localPixelQueueSize/get_local_size(0)) 
+    : 
+    (localPixelQueueSize/get_local_size(0)) + (localPixelQueueSize%get_local_size(0));
+  
+
 }

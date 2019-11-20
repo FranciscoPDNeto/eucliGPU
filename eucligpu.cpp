@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -10,29 +11,29 @@
 #define KERNELNAME "euclidean"
 
 
-void computeDistanceTransformImage(const UCImage *image, float *imageOutput) {
-  static const float thresholdVal = 1.0f;
+void sequentialDT(const UCImage *image, float *imageOutput) {
 
   for(unsigned int x=0; x < image->attrs.width; ++x) {
     for(unsigned int y=0; y < image->attrs.height; ++y) {
 
       float minDistance = std::numeric_limits<float>::max();
 
-      for(unsigned int ox=0; ox < image->attrs.width; ++ox) {
-        for(unsigned int oy=0; oy < image->attrs.height; ++oy) {
+      Coordinate coord1 = constructCoord(y, x, image->attrs.width);
+      for(unsigned int innerX = 0; innerX < image->attrs.width; ++innerX) {
+        for(unsigned int innerY = 0; innerY < image->attrs.height; ++innerY) {
 
-          if(static_cast<float>(image->image[image->attrs.height*oy + ox]) >= thresholdVal) {
-            const float distance = std::sqrt( 
-              static_cast<float>((ox-x)*(ox-x)) + 
-              static_cast<float>((oy-y)*(oy-y)) );
+          const Coordinate coord2 = constructCoord(innerY, innerX, image->attrs.width);
 
-            if( distance < minDistance )
+          if(!isBackgroudByCoord(image, coord2)) {
+            const float distance = euclideanDistance(coord1, coord2);
+
+            if(distance < minDistance)
               minDistance = distance;
             
           }
         }
       }
-      imageOutput[image->attrs.height*y + x] = minDistance;
+      imageOutput[image->attrs.width*y + x] = minDistance;
     }
   }
 
@@ -47,6 +48,28 @@ unsigned char floatToPixVal(const float imageValue) {
   } else {
       return tmpval & 0xffu;
   }
+}
+
+template<typename T>
+std::vector<std::vector<T>> SplitVector(const std::vector<T>& vec, size_t n) {
+    std::vector<std::vector<T>> outVec;
+
+    size_t length = vec.size() / n;
+    size_t remain = vec.size() % n;
+
+    size_t begin = 0;
+    size_t end = 0;
+
+    for (size_t i = 0; i < std::min(n, vec.size()); ++i)
+    {
+        end += (remain > 0) ? (length + !!(remain--)) : length;
+
+        outVec.push_back(std::vector<T>(vec.begin() + begin, vec.begin() + end));
+
+        begin = end;
+    }
+
+    return outVec;
 }
 
 class ExecuteDT {
@@ -65,31 +88,48 @@ public:
 
     const UCImage image = construcUCImage(m_image, imageHeight, imageWidth);
     const int imageSize = imageWidth * imageHeight;
-    m_output = new float[imageSize];
+    m_output = new float[imageSize]();
     assert(m_output != nullptr);
 
     // Paralelo
     // Initialization
+    
     VoronoiDiagramMap voronoi;
     voronoi.sizeOfDiagram = imageSize;
     voronoi.entries = new VoronoiDiagramMapEntry[voronoi.sizeOfDiagram];
+    // É usado o vector pois é mais fácil extrair o array primitivo para se passar a
+    // posteriori ao kernel.
+    std::vector<Pixel> queue;
     for (int x = 0; x < imageWidth; x++)
       for (int y = 0; y < imageHeight; y++) {
         Coordinate coordinate = constructCoord(y, x, imageWidth);
+        Neighborhood neighborhood = getNeighborhood(&image, getPixel(&image, coordinate));
+
         if (isBackgroudByCoord(&image, coordinate)) {
           voronoi.entries[coordinate.index] =
             VoronoiDiagramMapEntry{ coordinate, coordinate };
-          // for neighbor of neighborhood
-          //   if (neighbor isnt background) add to queue and break
-        } // TODO: else voronoi entry is inf
-      }
-    // Wavefront propagation
-    OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteDT::readKernel(), &image,
-                               m_output);
-    // Distance calculation
 
+          for (int i = 0; i < neighborhood.size; i++) {
+            const Pixel pixel = neighborhood.pixels[i];
+            if (!pixel.background) {
+              queue.push_back(pixel);
+            }
+          }
+        } else {
+          voronoi.entries[coordinate.index] = 
+            VoronoiDiagramMapEntry{ coordinate, constructInvalidCoord() };
+        }
+      }
+    if (!queue.empty()) {
+      // Wavefront propagation
+      OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteDT::readKernel(), &image,
+                                queue, &voronoi, m_output);
+    }
+    free(voronoi.entries);
+    // Distance calculation
+    
     // Sequencial
-    //computeDistanceTransformImage(&image, m_output);
+    //sequentialDT(&image, m_output);
     // A imagem de saída para mostrar o resultado deve ser 
     unsigned char *imageOut = new unsigned char[imageSize];
     float maxValue = std::numeric_limits<float>::min();
