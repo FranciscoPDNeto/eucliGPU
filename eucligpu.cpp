@@ -125,23 +125,20 @@ public:
       OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteDT::readKernel(), &image,
                                 queue, &voronoi, m_output);
     }
-    free(voronoi.entries);
-    // Distance calculation
-    
-    // Sequencial
-    //sequentialDT(&image, m_output);
-    // A imagem de saída para mostrar o resultado deve ser 
-    unsigned char *imageOut = new unsigned char[imageSize];
-    float maxValue = std::numeric_limits<float>::min();
-    for (int i = 0; i < imageSize; i++) {
-      if (maxValue < m_output[i])
-        maxValue = m_output[i];
-    }
-    for (int i = 0; i < imageSize; i++) {
-      imageOut[i] = floatToPixVal(m_output[i]/maxValue);
-    }
-    stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, imageOut);
 
+    // Distance calculation
+    unsigned char *imageOut = new unsigned char[imageSize];
+    for (int x = 0; x < imageWidth; x++)
+      for (int y = 0; y < imageHeight; y++) {
+        cl_uint4 coordinate = constructCoord(y, x, imageWidth);
+        cl_uint4 nearest = voronoi
+          .entries[coordinate.v4[2]]
+          .nearestBackground;
+        float distance = euclideanDistance(coordinate, nearest);
+        imageOut[coordinate.v4[2]] = floatToPixVal(distance);
+      }
+    free(voronoi.entries);
+    stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, imageOut);
     free(imageOut);
   }
 
