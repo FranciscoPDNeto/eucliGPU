@@ -69,8 +69,24 @@ public:
     assert(m_output != nullptr);
 
     // Paralelo
+    // Initialization
+    VoronoiDiagramMap voronoi;
+    voronoi.sizeOfDiagram = imageSize;
+    voronoi.entries = new VoronoiDiagramMapEntry[voronoi.sizeOfDiagram];
+    for (int x = 0; x < imageWidth; x++)
+      for (int y = 0; y < imageHeight; y++) {
+        Coordinate coordinate = constructCoord(y, x, imageWidth);
+        if (isBackgroudByCoord(&image, coordinate)) {
+          voronoi.entries[coordinate.index] =
+            VoronoiDiagramMapEntry{ coordinate, coordinate };
+          // for neighbor of neighborhood
+          //   if (neighbor isnt background) add to queue and break
+        } // TODO: else voronoi entry is inf
+      }
+    // Wavefront propagation
     OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteDT::readKernel(), &image,
                                m_output);
+    // Distance calculation
 
     // Sequencial
     //computeDistanceTransformImage(&image, m_output);

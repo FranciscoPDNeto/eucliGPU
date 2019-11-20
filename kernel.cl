@@ -21,7 +21,7 @@ Coordinate constructCoord(unsigned int y, unsigned int x, unsigned int imageWidt
  * \brief Calcula a distância euclideana.
 */
 float euclideanDistance(const Coordinate *coord1, const Coordinate *coord2) {
-  return sqrt((double)((coord1->y - coord2->y)*(coord1->y - coord2->y) + (coord1->x - coord2->x)*(coord1->x - coord2->x)));
+  return sqrt((float)((coord1->y - coord2->y)*(coord1->y - coord2->y) + (coord1->x - coord2->x)*(coord1->x - coord2->x)));
 }
 
 /**
@@ -156,7 +156,11 @@ VoronoiDiagramMapEntry getVoronoiEntry(const VoronoiDiagramMapEntry *map, const 
   return map[get_hash(map, diagramSize, coord)];
 }
 
-void __kernel euclidean(__global const unsigned char *A, __global const ImageAttrs *imageAttrs, __global float *B) {
-  unsigned long taskIndex = get_global_id(0);
-  B[taskIndex] = A[taskIndex] + A[taskIndex];
+void __kernel euclidean(
+  __global const unsigned char *image,
+  __global const ImageAttrs *imageAttrs,
+  __local Pixel *pixelQueue,
+  __local VoronoiDiagramMapEntry *voronoi
+) {
+  // Wavefront propagation
 }
