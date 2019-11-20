@@ -5,60 +5,40 @@
 #include <CL/cl.hpp>
 
 /**
- * \brief Representação de coordenada 2d.
+ * \brief A Coordenada é composta pelo valores de abscissa e ordenada, seguido do indice
+ * geral.
 */
-typedef struct {
-  cl_uint index;
-  cl_uint y;
-  cl_uint x;
-
-} Coordinate;
-
-Coordinate constructCoord(unsigned int y, unsigned int x, unsigned int imageWidth) {
-  Coordinate coord;
-  coord.index = y*imageWidth + x;
-  coord.y = y;
-  coord.x = x;
+cl_uint4 constructCoord(unsigned int y, unsigned int x, unsigned int imageWidth) {
+  cl_uint4 coord{y, x, y*imageWidth + x};
 
   return coord;
 }
 
-Coordinate constructInvalidCoord() {
-  Coordinate coord;
-  coord.index = -1;
-  coord.y = -1;
-  coord.x = -1;
-
+cl_uint4 constructInvalidCoord() {
+  const unsigned int maxUInt = std::numeric_limits<unsigned int>::max();
+  cl_uint4 coord{maxUInt, maxUInt};
   return coord;
 }
 
 /**
  * \brief Calcula a distância euclideana.
 */
-cl_float euclideanDistance(const Coordinate& coord1, const Coordinate& coord2) {
-  return std::sqrt(std::pow(coord1.y - coord2.y, 2) + std::pow(coord1.x - coord2.x, 2));
+cl_float euclideanDistance(const cl_uint4& coord1, const cl_uint4& coord2) {
+  return std::sqrt(std::pow(coord1.v4[0] - coord2.v4[0], 2) + std::pow(coord1.v4[1] - coord2.v4[1], 2));
 }
 
 /**
- * \brief Representa o Pixel da imagem.
+ * \brief Constroi um pixel, representa uma coordenada e um valor.
 */
-typedef struct {
-  Coordinate coord;
-  // Valor que corresponde a true caso seja célula de fundo, ou false(0) caso seja célula de frente(1).
-  bool background;
-} Pixel;
-
-Pixel constructPixel(const Coordinate coord, const bool background) {
-  Pixel pixel;
-  pixel.coord = coord;
-  pixel.background = background;
+cl_uint4 constructPixel(const cl_uint4 coord, const cl_uint value) {
+  cl_uint4 pixel{coord.v4[0], coord.v4[1], coord.v4[2], value};
   
   return pixel;
 }
 
 typedef struct {
   // Há no máximo 8 vizinhos.
-  Pixel pixels[8];
+  cl_uint4 pixels[8];
   // É unsigned char pois pode representar no máximo 8, então não é necessário
   // mais de um byte.
   cl_ushort size;
@@ -72,13 +52,13 @@ Neighborhood initNeighborhood() {
   return neighborhood;
 }
 
-void addNeighbor(Neighborhood *neighborhood, Pixel pixel) {
+void addNeighbor(Neighborhood *neighborhood, cl_uint4 pixel) {
   neighborhood->pixels[neighborhood->size++] = pixel;
 }
 
-Pixel getNeighbor(const Neighborhood neighborhood, const unsigned char index) {
+cl_uint4 getNeighbor(const Neighborhood neighborhood, const unsigned char index) {
   assert(index < neighborhood.size);
-  const Pixel pixel = neighborhood.pixels[index];
+  const cl_uint4 pixel = neighborhood.pixels[index];
 
   return pixel;
 }
@@ -105,43 +85,43 @@ UCImage construcUCImage(unsigned char *image, const unsigned int height, const u
   return ucimage;
 }
 
-cl_uchar getValueByCoord(const UCImage *image, const Coordinate coord) {
-  return image->image[coord.y * image->attrs.width + coord.x];
+cl_uchar getValueByCoord(const UCImage *image, const cl_uint4 coord) {
+  return image->image[coord.v4[0] * image->attrs.width + coord.v4[1]];
 }
 
-bool isBackgroudByCoord(const UCImage *image, const Coordinate coord) {
+bool isBackgroudByCoord(const UCImage *image, const cl_uint4 coord) {
   return getValueByCoord(image, coord) == 0;
 }
 
-Pixel getPixel(const UCImage *image, const Coordinate coordinate) {
+cl_uint4 getPixel(const UCImage *image, const cl_uint4 coordinate) {
   return constructPixel(coordinate, isBackgroudByCoord(image, coordinate));
 }
 
-Pixel getPixelByCoord(const UCImage *image, cl_int y, cl_int x) {
-  const Coordinate coord = constructCoord(y, x, image->attrs.width);
+cl_uint4 getPixelByCoord(const UCImage *image, cl_int y, cl_int x) {
+  const cl_uint4 coord = constructCoord(y, x, image->attrs.width);
   return getPixel(image, coord);
 }
 
-bool isBackgroudByPixel(const Pixel pixel) {
-  return pixel.background;
+bool isBackgroudByPixel(const cl_uint4 pixel) {
+  return pixel.v4[3];
 }
 
 /**
  * \brief Retorna a lista de valores vizinhos ao pixel na imagem.
  * A vizinhança utilizada é a simples, vizinhança direta na janela 3x3.
 */
-Neighborhood getNeighborhood(const UCImage *image, const Pixel& pixel) {
+Neighborhood getNeighborhood(const UCImage *image, const cl_uint4& pixel) {
   Neighborhood neighborhood;
   neighborhood.size = 0;
   for (cl_int i = -1; i < 2; i++) {
-    const cl_uint y = pixel.coord.y - i;
+    const cl_uint y = pixel.v4[0] - i;
     if (y >= image->attrs.height)
       continue;
 
     for (cl_int j = -1; j < 2; j++) {
       if (j == 0 && i == 0)
         continue;
-      const cl_uint x = pixel.coord.x - j;
+      const cl_uint x = pixel.v4[1] - j;
       if (x < 0 || x >= image->attrs.width)
         continue;
 
@@ -154,8 +134,8 @@ Neighborhood getNeighborhood(const UCImage *image, const Pixel& pixel) {
 }
 
 typedef struct {
-  Coordinate point;
-  Coordinate nearestBackground;
+  cl_uint4 point;
+  cl_uint4 nearestBackground;
 } VoronoiDiagramMapEntry;
 
 typedef struct {
@@ -164,12 +144,11 @@ typedef struct {
 } VoronoiDiagramMap;
 
 
-int get_hash(const VoronoiDiagramMap *map, const Coordinate *key) {
-  int result;
-  result = key->index;
-  return (result % map->sizeOfDiagram);
+int get_hash(const VoronoiDiagramMap *map, const cl_uint4 *key) {
+  // Pega o valor do indice da coordenada.
+  return (key->v4[2] % map->sizeOfDiagram);
 }
 
-VoronoiDiagramMapEntry getVoronoiEntry(const VoronoiDiagramMap *map, const Coordinate *coord) {
+VoronoiDiagramMapEntry getVoronoiEntry(const VoronoiDiagramMap *map, const cl_uint4 *coord) {
   return map->entries[get_hash(map, coord)];
 }

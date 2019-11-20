@@ -1,52 +1,49 @@
 /**
- * \brief Representação de coordenada 2d.
+ * \brief A Coordenada é composta pelo valores de abscissa e ordenada, seguido do indice
+ * geral.
 */
-typedef struct {
-  unsigned int index;
-  unsigned int y;
-  unsigned int x;
-
-} Coordinate;
-
-Coordinate constructCoord(unsigned int y, unsigned int x, unsigned int imageWidth) {
-  Coordinate coord;
-  coord.index = y*imageWidth + x;
+uint4 constructCoord(unsigned int y, unsigned int x, unsigned int imageWidth) {
+  uint4 coord;
   coord.y = y;
   coord.x = x;
+  coord.z = y*imageWidth + x;
+  return coord;
+}
 
+uint4 constructInvalidCoord() {
+  const unsigned int maxUInt = INFINITY;
+  uint4 coord;
+  coord.y = maxUInt;
+  coord.x = maxUInt;
   return coord;
 }
 
 /**
  * \brief Calcula a distância euclideana.
 */
-float euclideanDistance(const Coordinate *coord1, const Coordinate *coord2) {
-  return sqrt((float)((coord1->y - coord2->y)*(coord1->y - coord2->y) + (coord1->x - coord2->x)*(coord1->x - coord2->x)));
+float euclideanDistance(const uint4 coord1, const uint4 coord2) {
+  return sqrt((float)(coord1.y - coord2.y)*(coord1.y - coord2.y) + (coord1.x - coord2.x)*(coord1.x - coord2.x));
 }
 
 /**
- * \brief Representa o Pixel da imagem.
+ * \brief Constroi um pixel, representa uma coordenada e um valor.
 */
-typedef struct {
-  Coordinate coord;
-  // Valor que corresponde a true caso seja célula de fundo, ou false(0) caso seja célula de frente(1).
-  bool background;
-} Pixel;
-
-Pixel constructPixel(const Coordinate coord, const bool background) {
-  Pixel pixel;
-  pixel.coord = coord;
-  pixel.background = background;
+uint4 constructPixel(const uint4 coord, const uint value) {
+  uint4 pixel;
+  pixel.y = coord.y;
+  pixel.x = coord.x;
+  pixel.z = coord.z;
+  pixel.w = value;
   
   return pixel;
 }
 
 typedef struct {
   // Há no máximo 8 vizinhos.
-  Pixel pixels[8];
+  uint4 pixels[8];
   // É unsigned char pois pode representar no máximo 8, então não é necessário
   // mais de um byte.
-  unsigned char size;
+  ushort size;
   
 } Neighborhood;
 
@@ -57,20 +54,20 @@ Neighborhood initNeighborhood() {
   return neighborhood;
 }
 
-void addNeighbor(Neighborhood neighborhood, Pixel pixel) {
-  neighborhood.pixels[neighborhood.size++] = pixel;
+void addNeighbor(Neighborhood *neighborhood, uint4 pixel) {
+  neighborhood->pixels[neighborhood->size++] = pixel;
 }
 
-Pixel getNeighbor(const Neighborhood neighborhood, const unsigned char index) {
-  const Pixel pixel = neighborhood.pixels[index];
+uint4 getNeighbor(const Neighborhood neighborhood, const unsigned char index) {
+  const uint4 pixel = neighborhood.pixels[index];
 
   return pixel;
 }
 
 typedef struct __attribute__ ((packed)) {
-  unsigned int height;
-  unsigned int width;
-  unsigned int size;
+  uint height;
+  uint width;
+  uint size;
 } ImageAttrs;
 
 /*
@@ -92,39 +89,48 @@ UCImage construcUCImage(unsigned char *image, const unsigned int height, const u
 }
 */
 
-unsigned char getValueByCoord(const unsigned char *image, const ImageAttrs attrs, const Coordinate coord) {
+uchar getValueByCoord(const unsigned char *image, const ImageAttrs attrs, const uint4 coord) {
   return image[coord.y * attrs.width + coord.x];
 }
 
-bool isBackgroudByCoord(const unsigned char *image, const ImageAttrs attrs, const Coordinate coord) {
+bool isBackgroudByCoord(const unsigned char *image, const ImageAttrs attrs, const uint4 coord) {
   return getValueByCoord(image, attrs, coord) == 0;
 }
 
-Pixel getPixel(const unsigned char *image, const ImageAttrs attrs, int y, int x) {
-  const Coordinate coord = constructCoord(y, x, attrs.width);
-  return constructPixel(coord, isBackgroudByCoord(image, attrs, coord));
+uint4 getPixel(const unsigned char *image, const ImageAttrs attrs, const uint4 coordinate) {
+  return constructPixel(coordinate, isBackgroudByCoord(image, attrs, coordinate));
+}
+
+uint4 getPixelByCoord(const unsigned char *image, const ImageAttrs attrs, int y, int x) {
+  const uint4 coord = constructCoord(y, x, attrs.width);
+  return getPixel(image, attrs, coord);
+}
+
+bool isBackgroudByPixel(const uint4 pixel) {
+  return pixel.w;
 }
 
 /**
  * \brief Retorna a lista de valores vizinhos ao pixel na imagem.
  * A vizinhança utilizada é a simples, vizinhança direta na janela 3x3.
 */
-Neighborhood getNeighborhood(const unsigned char *image, const ImageAttrs attrs, const Pixel *pixel) {
+Neighborhood getNeighborhood(const unsigned char *image, const ImageAttrs attrs, const uint4 pixel) {
   Neighborhood neighborhood;
+  neighborhood.size = 0;
   for (int i = -1; i < 2; i++) {
-    const unsigned int y = pixel->coord.y - i;
+    const uint y = pixel.y - i;
     if (y >= attrs.height)
       continue;
 
-    for (int j = -1; i < 2; i++) {
+    for (int j = -1; j < 2; j++) {
       if (j == 0 && i == 0)
         continue;
-      const unsigned int x = pixel->coord.x - j;
+      const uint x = pixel.x - j;
       if (x < 0 || x >= attrs.width)
         continue;
 
 
-      addNeighbor(neighborhood, getPixel(image, attrs, y, x));
+      addNeighbor(&neighborhood, getPixelByCoord(image, attrs, y, x));
     }
   }
   
@@ -132,8 +138,8 @@ Neighborhood getNeighborhood(const unsigned char *image, const ImageAttrs attrs,
 }
 
 typedef struct {
-  Coordinate point;
-  Coordinate nearestBackground;
+  uint4 point;
+  uint4 nearestBackground;
 } VoronoiDiagramMapEntry;
 
 /*
@@ -145,23 +151,21 @@ typedef struct {
 } VoronoiDiagramMap;
 */
 
-
-int get_hash(const VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const Coordinate *key) {
-  int result;
-  result = key->index;
-  return (result % diagramSize);
+int get_hash(const VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 *key) {
+  // Pega o valor do indice da coordenada.
+  return (key->z %diagramSize);
 }
 
-VoronoiDiagramMapEntry getVoronoiEntry(const VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const Coordinate *coord) {
+VoronoiDiagramMapEntry getVoronoiEntry(const VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 *coord) {
   return map[get_hash(map, diagramSize, coord)];
 }
 
 void __kernel euclidean(
   __global const unsigned char *image,
   __global const ImageAttrs *imageAttrs,
-  __global Pixel *pixelQueue,
+  __global uint4 *pixelQueue,
   const unsigned int pixelQueueSize,
-  __local Pixel *lpixelQueue,
+  __local uint4 *lpixelQueue,
   __global VoronoiDiagramMapEntry *voronoi
 ) {
   // Wavefront propagation
@@ -173,7 +177,7 @@ void __kernel euclidean(
     : 
     (pixelQueueSize/get_num_groups(0)) + (pixelQueueSize%get_num_groups(0));
   
-  async_work_group_copy(lpixelQueue, (Pixel *)(pixelQueue+localPixelQueueOffset*localPixelQueueSize), localPixelQueueSize, 0);
+  async_work_group_copy(lpixelQueue, (pixelQueue+localPixelQueueOffset*localPixelQueueSize), localPixelQueueSize, 0);
 
   __private unsigned int privatePixelQueueOffset = get_local_id(0)*(localPixelQueueSize/get_local_size(0));
   __private unsigned int privatelPixelQueueSize = get_local_id(0) != (get_local_size(0) - 1) ? 

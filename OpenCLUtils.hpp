@@ -207,7 +207,7 @@ void executeAlternativeKernel(const UCImage *image, cl_float *dataOutput) {
 void executeOpenCL(const std::string &kernelName,
                    const std::string &kernelSource,
                    const UCImage *image,
-                   const std::vector<Pixel>& pixelQueue,
+                   const std::vector<cl_uint4>& pixelQueue,
                    const VoronoiDiagramMap *voronoi,
                    cl_float *dataOutput) {
 
@@ -229,7 +229,7 @@ void executeOpenCL(const std::string &kernelName,
   cl::Buffer inputAttrsBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                          sizeof(ImageAttrs), nullptr);
   cl::Buffer inputQueueBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                         sizeof(Pixel)*pixelQueue.size(), nullptr);
+                         sizeof(cl_uint4)*pixelQueue.size(), nullptr);
   cl::Buffer outputVoronoiBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
                          sizeof(VoronoiDiagramMapEntry)*voronoi->sizeOfDiagram, nullptr);
 
@@ -246,7 +246,7 @@ void executeOpenCL(const std::string &kernelName,
     throw std::runtime_error(getErrorString(errorCode));
 
   errorCode = queue.enqueueWriteBuffer(inputQueueBuffer, CL_FALSE, 0,
-                           sizeof(Pixel)*pixelQueue.size(), pixelQueue.data());
+                           sizeof(cl_uint4)*pixelQueue.size(), pixelQueue.data());
   if (errorCode != CL_SUCCESS)
     throw std::runtime_error(getErrorString(errorCode));
 

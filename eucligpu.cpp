@@ -18,11 +18,11 @@ void sequentialDT(const UCImage *image, float *imageOutput) {
 
       float minDistance = std::numeric_limits<float>::max();
 
-      Coordinate coord1 = constructCoord(y, x, image->attrs.width);
+      cl_uint4 coord1 = constructCoord(y, x, image->attrs.width);
       for(unsigned int innerX = 0; innerX < image->attrs.width; ++innerX) {
         for(unsigned int innerY = 0; innerY < image->attrs.height; ++innerY) {
 
-          const Coordinate coord2 = constructCoord(innerY, innerX, image->attrs.width);
+          const cl_uint4 coord2 = constructCoord(innerY, innerX, image->attrs.width);
 
           if(!isBackgroudByCoord(image, coord2)) {
             const float distance = euclideanDistance(coord1, coord2);
@@ -99,24 +99,24 @@ public:
     voronoi.entries = new VoronoiDiagramMapEntry[voronoi.sizeOfDiagram];
     // É usado o vector pois é mais fácil extrair o array primitivo para se passar a
     // posteriori ao kernel.
-    std::vector<Pixel> queue;
+    std::vector<cl_uint4> queue;
     for (int x = 0; x < imageWidth; x++)
       for (int y = 0; y < imageHeight; y++) {
-        Coordinate coordinate = constructCoord(y, x, imageWidth);
+        cl_uint4 coordinate = constructCoord(y, x, imageWidth);
         Neighborhood neighborhood = getNeighborhood(&image, getPixel(&image, coordinate));
 
         if (isBackgroudByCoord(&image, coordinate)) {
-          voronoi.entries[coordinate.index] =
+          voronoi.entries[coordinate.v4[2]] =
             VoronoiDiagramMapEntry{ coordinate, coordinate };
 
           for (int i = 0; i < neighborhood.size; i++) {
-            const Pixel pixel = neighborhood.pixels[i];
-            if (!pixel.background) {
+            const cl_uint4 pixel = neighborhood.pixels[i];
+            if (!pixel.v4[2]) {
               queue.push_back(pixel);
             }
           }
         } else {
-          voronoi.entries[coordinate.index] = 
+          voronoi.entries[coordinate.v4[2]] = 
             VoronoiDiagramMapEntry{ coordinate, constructInvalidCoord() };
         }
       }
