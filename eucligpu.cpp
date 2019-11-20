@@ -91,7 +91,7 @@ public:
     m_output = new float[imageSize]();
     assert(m_output != nullptr);
 
-    // Paralelo
+    // Sequencial
     // Initialization
     
     VoronoiDiagramMap voronoi;
@@ -120,6 +120,25 @@ public:
             VoronoiDiagramMapEntry{ coordinate, constructInvalidCoord() };
         }
       }
+
+    while (!queue.empty()) {
+      cl_uint4 pixel = queue.back();
+      cl_uint4 area = voronoi.entries[pixel.v4[2]].nearestBackground;
+      queue.pop_back();
+      Neighborhood neighborhood = getNeighborhood(&image, pixel);
+      for (int p = 0; p < neighborhood.size; p++) {
+        while (true) {
+          cl_uint4 neighbor = neighborhood.pixels[p];
+          cl_uint4 current = voronoi.entries[neighbor.v4[2]].nearestBackground;
+          if (euclideanDistance(neighbor, area) < euclideanDistance(neighbor, current)) {
+            voronoi.entries[neighbor.v4[2]].nearestBackground = area;
+            queue.insert(queue.begin(), neighbor);
+            break;
+          } else break;
+        }
+      }
+    }
+    
     if (!queue.empty()) {
       // Wavefront propagation
       OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteDT::readKernel(), &image,
