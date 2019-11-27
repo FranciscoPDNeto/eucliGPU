@@ -262,7 +262,7 @@ void executeOpenCL(const std::string &kernelName,
   kernel.setArg(1, inputAttrsBuffer);
   kernel.setArg(2, inputQueueBuffer);
   kernel.setArg(3, sizeof(unsigned int), &pixelQueueSize);
-  kernel.setArg(4, cl::__local(pixelQueue.size()/localSize + pixelQueue.size()%localSize));
+  kernel.setArg(4, cl::Local(pixelQueue.size()/localSize + pixelQueue.size()%localSize));
   kernel.setArg(5, outputVoronoiBuffer);
   kernel.setArg(6, sizeof(unsigned int), &voronoi->sizeOfDiagram);
 
