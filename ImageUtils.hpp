@@ -63,14 +63,8 @@ cl_uint4 getNeighbor(const Neighborhood neighborhood, const unsigned char index)
   return pixel;
 }
 
-typedef struct __attribute__ ((packed)) {
-  cl_uint height;
-  cl_uint width;
-  cl_uint size;
-} ImageAttrs;
-
 typedef struct {
-  ImageAttrs attrs; 
+  cl_uint2 attrs; 
   cl_uchar *image;
 } UCImage;
 
@@ -78,15 +72,14 @@ typedef struct {
 UCImage construcUCImage(unsigned char *image, const unsigned int height, const unsigned int width) {
   UCImage ucimage;
   ucimage.image = image;
-  ucimage.attrs.height = height;
-  ucimage.attrs.width = width;
-  ucimage.attrs.size = width * height;
+  ucimage.attrs.v2[0] = height;
+  ucimage.attrs.v2[1] = width;
 
   return ucimage;
 }
 
 cl_uchar getValueByCoord(const UCImage *image, const cl_uint4 coord) {
-  return image->image[coord.v4[0] * image->attrs.width + coord.v4[1]];
+  return image->image[coord.v4[0] * image->attrs.v2[1] + coord.v4[1]];
 }
 
 bool isBackgroudByCoord(const UCImage *image, const cl_uint4 coord) {
@@ -98,7 +91,7 @@ cl_uint4 getPixel(const UCImage *image, const cl_uint4 coordinate) {
 }
 
 cl_uint4 getPixelByCoord(const UCImage *image, cl_int y, cl_int x) {
-  const cl_uint4 coord = constructCoord(y, x, image->attrs.width);
+  const cl_uint4 coord = constructCoord(y, x, image->attrs.v2[1]);
   return getPixel(image, coord);
 }
 
@@ -115,14 +108,14 @@ Neighborhood getNeighborhood(const UCImage *image, const cl_uint4& pixel) {
   neighborhood.size = 0;
   for (cl_int i = -1; i < 2; i++) {
     const cl_uint y = pixel.v4[0] - i;
-    if (y >= image->attrs.height)
+    if (y >= image->attrs.v2[0])
       continue;
 
     for (cl_int j = -1; j < 2; j++) {
       if (j == 0 && i == 0)
         continue;
       const cl_uint x = pixel.v4[1] - j;
-      if (x < 0 || x >= image->attrs.width)
+      if (x < 0 || x >= image->attrs.v2[1])
         continue;
 
 

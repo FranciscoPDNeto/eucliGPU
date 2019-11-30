@@ -137,73 +137,6 @@ cl::Device userSelectDevice() {
   return defaultDevice;
 }
 
-static std::string readKernel() {
-  std::ifstream input("kernel2.cl");
-  std::string source;
-  input.seekg(0, std::ios::end);
-  source.reserve(input.tellg());
-  input.seekg(0, std::ios::beg);
-  source.assign((std::istreambuf_iterator<char>(input)),
-                std::istreambuf_iterator<char>());
-  return source;
-}
-
-void executeAlternativeKernel(const UCImage *image, cl_float *dataOutput) {
-  const cl::Device defaultDevice = getDevice(0);
-
-  cl::Context context({defaultDevice});
-  cl::Program::Sources sources;
-
-  const std::string kernelSource(readKernel());
-  sources.push_back({kernelSource.c_str(), kernelSource.length()});
-  cl::Program program(context, sources);
-  if (program.build({defaultDevice}) != CL_SUCCESS) {
-    throw std::runtime_error(
-        "Error building: " +
-        program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(defaultDevice));
-  }
-
-  cl::Buffer inputBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                         sizeof(cl_uchar)*image->attrs.size, nullptr);
-  cl::Buffer inputAttrsBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                         sizeof(ImageAttrs), nullptr);
-  cl::Buffer outputBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
-                         sizeof(cl_float)*image->attrs.size, nullptr);
-
-  cl::CommandQueue queue(context, defaultDevice);
-  
-  cl_int errorCode = queue.enqueueWriteBuffer(inputBuffer, CL_TRUE, 0,
-                           sizeof(cl_uchar)*image->attrs.size, image->image);
-  if (errorCode != CL_SUCCESS)
-    throw std::runtime_error(getErrorString(errorCode));
-
-  errorCode = queue.enqueueWriteBuffer(inputAttrsBuffer, CL_TRUE, 0,
-                           sizeof(ImageAttrs), &(image->attrs));
-  if (errorCode != CL_SUCCESS)
-    throw std::runtime_error(getErrorString(errorCode));
-
-  errorCode = queue.enqueueWriteBuffer(outputBuffer, CL_TRUE, 0,
-                           sizeof(cl_float)*image->attrs.size, dataOutput);
-  if (errorCode != CL_SUCCESS)
-    throw std::runtime_error(getErrorString(errorCode));
-  
-  const int localSize = 32;
-  cl::Kernel kernel(program, "DistanceTransform");
-  kernel.setArg(0, inputBuffer);
-  kernel.setArg(1, inputAttrsBuffer);
-  kernel.setArg(2, outputBuffer);
-
-  errorCode = queue.enqueueNDRangeKernel(kernel, 0, image->attrs.size, localSize);
-  if (errorCode != CL_SUCCESS)
-    throw std::runtime_error(getErrorString(errorCode));
-
-  // Retorna o resultado da computação na GPU para o dataOutput.
-  errorCode = queue.enqueueReadBuffer(outputBuffer, CL_TRUE, 0,
-                          sizeof(cl_float) * image->attrs.size, dataOutput);
-  if (errorCode != CL_SUCCESS)
-    throw std::runtime_error(getErrorString(errorCode));
-}
-
 void executeOpenCL(const std::string &kernelName,
                    const std::string &kernelSource,
                    const UCImage *image,
@@ -224,10 +157,11 @@ void executeOpenCL(const std::string &kernelName,
         program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(defaultDevice));
   }
 
+  const size_t imageSize = image->attrs.v2[0]*image->attrs.v2[1];
+  const size_t imageSizeInBytes = sizeof(cl_uchar)*imageSize;
+
   cl::Buffer inputBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                         sizeof(cl_uchar)*image->attrs.size, nullptr);
-  cl::Buffer inputAttrsBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                         sizeof(ImageAttrs), nullptr);
+                         imageSizeInBytes, nullptr);
   cl::Buffer inputQueueBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                          sizeof(cl_uint4)*pixelQueue.size(), nullptr);
   cl::Buffer outputVoronoiBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
@@ -236,12 +170,7 @@ void executeOpenCL(const std::string &kernelName,
   cl::CommandQueue queue(context, defaultDevice);
   
   cl_int errorCode = queue.enqueueWriteBuffer(inputBuffer, CL_TRUE, 0,
-                           sizeof(cl_uchar)*image->attrs.size, image->image);
-  if (errorCode != CL_SUCCESS)
-    throw std::runtime_error(getErrorString(errorCode));
-
-  errorCode = queue.enqueueWriteBuffer(inputAttrsBuffer, CL_TRUE, 0,
-                           sizeof(ImageAttrs), &(image->attrs));
+                           imageSizeInBytes, image->image);
   if (errorCode != CL_SUCCESS)
     throw std::runtime_error(getErrorString(errorCode));
 
@@ -259,14 +188,14 @@ void executeOpenCL(const std::string &kernelName,
   const unsigned int pixelQueueSize = pixelQueue.size();
   cl::Kernel kernel(program, kernelName.c_str());
   kernel.setArg(0, inputBuffer);
-  kernel.setArg(1, inputAttrsBuffer);
+  kernel.setArg(1, sizeof(cl_uint2), &image->attrs);
   kernel.setArg(2, inputQueueBuffer);
   kernel.setArg(3, sizeof(unsigned int), &pixelQueueSize);
   kernel.setArg(4, cl::Local(pixelQueue.size()/localSize + pixelQueue.size()%localSize));
   kernel.setArg(5, outputVoronoiBuffer);
   kernel.setArg(6, sizeof(unsigned int), &voronoi->sizeOfDiagram);
 
-  errorCode = queue.enqueueNDRangeKernel(kernel, 0, image->attrs.size, localSize);
+  errorCode = queue.enqueueNDRangeKernel(kernel, 0, imageSize, localSize);
   if (errorCode != CL_SUCCESS)
     throw std::runtime_error(getErrorString(errorCode));
 

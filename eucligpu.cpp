@@ -13,16 +13,16 @@
 
 void sequentialDT(const UCImage *image, float *imageOutput) {
 
-  for(unsigned int x=0; x < image->attrs.width; ++x) {
-    for(unsigned int y=0; y < image->attrs.height; ++y) {
+  for(unsigned int x=0; x < image->attrs.v2[1]; ++x) {
+    for(unsigned int y=0; y < image->attrs.v2[0]; ++y) {
 
       float minDistance = std::numeric_limits<float>::max();
 
-      cl_uint4 coord1 = constructCoord(y, x, image->attrs.width);
-      for(unsigned int innerX = 0; innerX < image->attrs.width; ++innerX) {
-        for(unsigned int innerY = 0; innerY < image->attrs.height; ++innerY) {
+      cl_uint4 coord1 = constructCoord(y, x, image->attrs.v2[1]);
+      for(unsigned int innerX = 0; innerX < image->attrs.v2[1]; ++innerX) {
+        for(unsigned int innerY = 0; innerY < image->attrs.v2[0]; ++innerY) {
 
-          const cl_uint4 coord2 = constructCoord(innerY, innerX, image->attrs.width);
+          const cl_uint4 coord2 = constructCoord(innerY, innerX, image->attrs.v2[1]);
 
           if(!isBackgroudByCoord(image, coord2)) {
             const float distance = euclideanDistance(coord1, coord2);
@@ -33,7 +33,7 @@ void sequentialDT(const UCImage *image, float *imageOutput) {
           }
         }
       }
-      imageOutput[image->attrs.width*y + x] = minDistance;
+      imageOutput[image->attrs.v2[1]*y + x] = minDistance;
     }
   }
 

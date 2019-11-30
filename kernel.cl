@@ -64,12 +64,6 @@ uint4 getNeighbor(const Neighborhood neighborhood, const unsigned char index) {
   return pixel;
 }
 
-typedef struct __attribute__ ((packed)) {
-  uint height;
-  uint width;
-  uint size;
-} ImageAttrs;
-
 /*
 //Não pode ser passado para o kernel, uma vez que o OpenCL tem restrição quanto ao uso de
 //arrays sem tamanho previamente especificado. Sessão 6.9 https://www.khronos.org/registry/OpenCL/specs/opencl-1.2.pdf
@@ -89,20 +83,20 @@ UCImage construcUCImage(unsigned char *image, const unsigned int height, const u
 }
 */
 
-uchar getValueByCoord(const unsigned char *image, const ImageAttrs attrs, const uint4 coord) {
-  return image[coord.y * attrs.width + coord.x];
+uchar getValueByCoord(const __global unsigned char *image, const uint2 attrs, const uint4 coord) {
+  return image[coord.y * attrs.x + coord.x];
 }
 
-bool isBackgroudByCoord(const unsigned char *image, const ImageAttrs attrs, const uint4 coord) {
+bool isBackgroudByCoord(const __global unsigned char *image, const uint2 attrs, const uint4 coord) {
   return getValueByCoord(image, attrs, coord) == 0;
 }
 
-uint4 getPixel(const unsigned char *image, const ImageAttrs attrs, const uint4 coordinate) {
+uint4 getPixel(const __global unsigned char *image, const uint2 attrs, const uint4 coordinate) {
   return constructPixel(coordinate, isBackgroudByCoord(image, attrs, coordinate));
 }
 
-uint4 getPixelByCoord(const unsigned char *image, const ImageAttrs attrs, int y, int x) {
-  const uint4 coord = constructCoord(y, x, attrs.width);
+uint4 getPixelByCoord(const __global unsigned char *image, const uint2 attrs, int y, int x) {
+  const uint4 coord = constructCoord(y, x, attrs.x);
   return getPixel(image, attrs, coord);
 }
 
@@ -114,19 +108,19 @@ bool isBackgroudByPixel(const uint4 pixel) {
  * \brief Retorna a lista de valores vizinhos ao pixel na imagem.
  * A vizinhança utilizada é a simples, vizinhança direta na janela 3x3.
 */
-Neighborhood getNeighborhood(const unsigned char *image, __global const ImageAttrs attrs, const uint4 pixel) {
+Neighborhood getNeighborhood(const __global unsigned char *image, const uint2 attrs, const uint4 pixel) {
   Neighborhood neighborhood;
   neighborhood.size = 0;
   for (int i = -1; i < 2; i++) {
     const uint y = pixel.y - i;
-    if (y >= attrs.height)
+    if (y >= attrs.y)
       continue;
 
     for (int j = -1; j < 2; j++) {
       if (j == 0 && i == 0)
         continue;
       const uint x = pixel.x - j;
-      if (x < 0 || x >= attrs.width)
+      if (x < 0 || x >= attrs.x)
         continue;
 
 
@@ -174,7 +168,7 @@ bool compareCoords(const uint4 coord1, const uint4 coord2) {
 
 void __kernel euclidean(
   __global const unsigned char *image,
-  __global const ImageAttrs *imageAttrs,
+  const uint2 imageAttrs,
   __global uint4 *pixelQueue,
   const unsigned int pixelQueueSize,
   __local uint4 *lpixelQueue,
