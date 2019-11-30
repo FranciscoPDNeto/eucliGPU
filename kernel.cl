@@ -158,7 +158,7 @@ uint4 getVoronoiValue(__global VoronoiDiagramMapEntry *map, const unsigned int d
   return getVoronoiEntry(map, diagramSize, coord)->nearestBackground;
 }
 
-__global uint4 *getVoronoiValuePtr(__global VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 coord) {
+volatile __global uint4 *getVoronoiValuePtr(__global VoronoiDiagramMapEntry *map, const unsigned int diagramSize, const uint4 coord) {
   return &(getVoronoiEntry(map, diagramSize, coord)->nearestBackground);
 }
 
@@ -209,8 +209,14 @@ void __kernel euclidean(
         uint4 curVRQ = getVoronoiValue(voronoi, voronoiSize, coordinateQ);
 
         if (euclideanDistance(q, getVoronoiValue(voronoi, voronoiSize, coordinateP)) < euclideanDistance(q, curVRQ)) {
-          uint4 old = atomic_cmpxchg(getVoronoiValuePtr(voronoi, voronoiSize, coordinateQ), 
-            curVRQ, getVoronoiValue(voronoi, voronoiSize, coordinateP));
+          uint4 old;
+          volatile __global uint4 *voronoiValuePtr = getVoronoiValuePtr(voronoi, voronoiSize, coordinateQ);
+          old.x = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->x, 
+            curVRQ.x, getVoronoiValue(voronoi, voronoiSize, coordinateP).x);
+          old.y = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->y, 
+            curVRQ.y, getVoronoiValue(voronoi, voronoiSize, coordinateP).y);
+          old.z = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->z, 
+            curVRQ.z, getVoronoiValue(voronoi, voronoiSize, coordinateP).z);
 
           if (compareCoords(old, curVRQ)) {
             exceededPixel[exceededPixelSize++] = q;
@@ -238,8 +244,14 @@ void __kernel euclidean(
           uint4 curVRQ = getVoronoiValue(voronoi, voronoiSize, coordinateQ);
 
           if (euclideanDistance(q, getVoronoiValue(voronoi, voronoiSize, coordinateP)) < euclideanDistance(q, curVRQ)) {
-            uint4 old = atomic_cmpxchg((volatile __global uint *)getVoronoiValuePtr(voronoi, voronoiSize, coordinateQ), 
-              curVRQ, getVoronoiValue(voronoi, voronoiSize, coordinateP));
+            uint4 old;
+            volatile __global uint4 *voronoiValuePtr = getVoronoiValuePtr(voronoi, voronoiSize, coordinateQ);
+            old.x = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->x, 
+              curVRQ.x, getVoronoiValue(voronoi, voronoiSize, coordinateP).x);
+            old.y = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->y, 
+              curVRQ.y, getVoronoiValue(voronoi, voronoiSize, coordinateP).y);
+            old.z = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->z, 
+              curVRQ.z, getVoronoiValue(voronoi, voronoiSize, coordinateP).z);
 
             if (compareCoords(old, curVRQ)) {
               exceededPixel[exceededPixelSizeQueue++] = q;
