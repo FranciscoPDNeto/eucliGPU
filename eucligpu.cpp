@@ -19,17 +19,19 @@ void sequentialDT(const UCImage *image, float *imageOutput) {
       float minDistance = std::numeric_limits<float>::max();
 
       cl_uint4 coord1 = constructCoord(y, x, image->attrs.width);
-      for(unsigned int innerX = 0; innerX < image->attrs.width; ++innerX) {
-        for(unsigned int innerY = 0; innerY < image->attrs.height; ++innerY) {
+      if (!isBackgroudByCoord(image, coord1)) {
+        for(unsigned int innerX = 0; innerX < image->attrs.width; ++innerX) {
+          for(unsigned int innerY = 0; innerY < image->attrs.height; ++innerY) {
 
-          const cl_uint4 coord2 = constructCoord(innerY, innerX, image->attrs.width);
+            const cl_uint4 coord2 = constructCoord(innerY, innerX, image->attrs.width);
 
-          if(!isBackgroudByCoord(image, coord2)) {
-            const float distance = euclideanDistance(coord1, coord2);
+            if(isBackgroudByCoord(image, coord2)) {
+              const float distance = euclideanDistance(coord1, coord2);
 
-            if(distance < minDistance)
-              minDistance = distance;
-            
+              if(distance < minDistance)
+                minDistance = distance;
+              
+            }
           }
         }
       }
@@ -88,8 +90,6 @@ public:
 
     const UCImage image = construcUCImage(m_image, imageHeight, imageWidth);
     const int imageSize = imageWidth * imageHeight;
-    m_output = new float[imageSize]();
-    assert(m_output != nullptr);
 
     // Sequencial
     // Initialization
@@ -139,7 +139,8 @@ public:
 
     // Distance calculation
     float maxDistance = sqrt(pow(imageWidth, 2) + pow(imageHeight, 2));
-    unsigned char *imageOut = new unsigned char[imageSize];
+    m_output = new unsigned char[imageSize]();
+    assert(m_output != nullptr);
     for (int x = 0; x < imageWidth; x++)
       for (int y = 0; y < imageHeight; y++) {
         cl_uint4 coordinate = constructCoord(y, x, imageWidth);
@@ -147,11 +148,10 @@ public:
           .entries[coordinate.v4[2]]
           .nearestBackground;
         float distance = euclideanDistance(coordinate, nearest);
-        imageOut[coordinate.v4[2]] = floatToPixVal(distance / maxDistance);
+        m_output[coordinate.v4[2]] = floatToPixVal(distance / maxDistance);
       }
     free(voronoi.entries);
-    stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, imageOut);
-    free(imageOut);
+    stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, m_output);
   }
 
   ~ExecuteDT() {
@@ -165,7 +165,7 @@ public:
 private:
   const std::string m_filename;
   unsigned char *m_image;
-  float *m_output;
+  unsigned char *m_output;
 
   static std::string readKernel() {
     std::ifstream input("kernel.cl");
