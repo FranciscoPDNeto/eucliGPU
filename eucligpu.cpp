@@ -127,6 +127,7 @@ public:
     }
 
     // Distance calculation
+    float maxDistance = std::sqrt(std::pow(imageWidth, 2) + std::pow(imageHeight, 2));
     unsigned char *imageOut = new unsigned char[imageSize];
     for (int x = 0; x < imageWidth; x++)
       for (int y = 0; y < imageHeight; y++) {
@@ -135,7 +136,7 @@ public:
           .entries[coordinate.v4[2]]
           .nearestBackground;
         float distance = euclideanDistance(coordinate, nearest);
-        imageOut[coordinate.v4[2]] = floatToPixVal(distance);
+        imageOut[coordinate.v4[2]] = floatToPixVal(distance / maxDistance);
       }
     free(voronoi.entries);
     stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, imageOut);
