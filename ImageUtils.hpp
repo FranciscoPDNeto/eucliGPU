@@ -24,7 +24,10 @@ cl_uint4 constructInvalidCoord() {
  * \brief Calcula a distância euclideana.
 */
 cl_float euclideanDistance(const cl_uint4& coord1, const cl_uint4& coord2) {
-  return std::sqrt(std::pow(coord1.v4[0] - coord2.v4[0], 2) + std::pow(coord1.v4[1] - coord2.v4[1], 2));
+  return std::sqrt(
+    std::pow((float) coord1.v4[0] - coord2.v4[0], 2) +
+    std::pow((float) coord1.v4[1] - coord2.v4[1], 2)
+  );
 }
 
 /**

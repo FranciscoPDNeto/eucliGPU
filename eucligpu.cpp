@@ -4,7 +4,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "OpenCLUtils.hpp"
+#include "ImageUtils.hpp"
 #include "stb_image.h"
 #include "stb_image_write.h"
 
@@ -111,8 +111,9 @@ public:
 
           for (int i = 0; i < neighborhood.size; i++) {
             const cl_uint4 pixel = neighborhood.pixels[i];
-            if (!pixel.v4[2]) {
-              queue.push_back(pixel);
+            if (!isBackgroudByCoord(&image, pixel)) {
+              queue.push_back(coordinate);
+              break;
             }
           }
         } else {
@@ -127,25 +128,17 @@ public:
       queue.pop_back();
       Neighborhood neighborhood = getNeighborhood(&image, pixel);
       for (int p = 0; p < neighborhood.size; p++) {
-        while (true) {
-          cl_uint4 neighbor = neighborhood.pixels[p];
-          cl_uint4 current = voronoi.entries[neighbor.v4[2]].nearestBackground;
-          if (euclideanDistance(neighbor, area) < euclideanDistance(neighbor, current)) {
-            voronoi.entries[neighbor.v4[2]].nearestBackground = area;
-            queue.insert(queue.begin(), neighbor);
-            break;
-          } else break;
+        cl_uint4 neighbor = neighborhood.pixels[p];
+        cl_uint4 current = voronoi.entries[neighbor.v4[2]].nearestBackground;
+        if (euclideanDistance(neighbor, area) < euclideanDistance(neighbor, current)) {
+          voronoi.entries[neighbor.v4[2]].nearestBackground = area;
+          queue.insert(queue.begin(), neighbor);
         }
       }
     }
-    
-    if (!queue.empty()) {
-      // Wavefront propagation
-      OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteDT::readKernel(), &image,
-                                queue, &voronoi, m_output);
-    }
 
     // Distance calculation
+    float maxDistance = sqrt(pow(imageWidth, 2) + pow(imageHeight, 2));
     unsigned char *imageOut = new unsigned char[imageSize];
     for (int x = 0; x < imageWidth; x++)
       for (int y = 0; y < imageHeight; y++) {
@@ -154,7 +147,7 @@ public:
           .entries[coordinate.v4[2]]
           .nearestBackground;
         float distance = euclideanDistance(coordinate, nearest);
-        imageOut[coordinate.v4[2]] = floatToPixVal(distance);
+        imageOut[coordinate.v4[2]] = floatToPixVal(distance / maxDistance);
       }
     free(voronoi.entries);
     stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, imageOut);
