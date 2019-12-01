@@ -195,7 +195,7 @@ void __kernel euclidean(
   uint exceededPixelSize = 0;
   // o máximo de pixel excedido é a quantidade de pixels multiplicado pelo valor máximo de vizinhos
   // q cada píxel pode ter.
-  uint4 exceededPixel[privatelPixelQueueSize*8];
+  uint4 exceededPixel[100*100*8];
 
   for (int i = 0; i < privatelPixelQueueSize; i++) {
     uint4 p = pixelQueue[i];

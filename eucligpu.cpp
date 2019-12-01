@@ -111,8 +111,8 @@ public:
 
           for (int i = 0; i < neighborhood.size; i++) {
             const cl_uint4 pixel = neighborhood.pixels[i];
-            if (!pixel.v4[2]) {
-              queue.push_back(pixel);
+            if (!isBackgroudByCoord(&image, pixel)) {
+              queue.push_back(coordinate);
             }
           }
         } else {
