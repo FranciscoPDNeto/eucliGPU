@@ -141,8 +141,7 @@ void executeOpenCL(const std::string &kernelName,
                    const std::string &kernelSource,
                    const UCImage *image,
                    const std::vector<cl_uint4>& pixelQueue,
-                   const VoronoiDiagramMap *voronoi,
-                   cl_float *dataOutput) {
+                   const VoronoiDiagramMap *voronoi) {
 
   const cl::Device defaultDevice = getDevice(0);
 

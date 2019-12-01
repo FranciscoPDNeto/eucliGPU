@@ -88,8 +88,6 @@ public:
 
     const UCImage image = construcUCImage(m_image, imageHeight, imageWidth);
     const int imageSize = imageWidth * imageHeight;
-    m_output = new float[imageSize]();
-    assert(m_output != nullptr);
 
     // Paralelo
     // Initialization
@@ -123,24 +121,25 @@ public:
     if (!queue.empty()) {
       // Wavefront propagation
       OpenCLUtils::executeOpenCL(KERNELNAME, ExecuteDT::readKernel(), &image,
-                                queue, &voronoi, m_output);
+                                queue, &voronoi);
     }
 
     // Distance calculation
     float maxDistance = std::sqrt(std::pow(imageWidth, 2) + std::pow(imageHeight, 2));
-    unsigned char *imageOut = new unsigned char[imageSize];
+    m_output = new unsigned char[imageSize];
+    assert(m_output != nullptr);
     for (int x = 0; x < imageWidth; x++)
       for (int y = 0; y < imageHeight; y++) {
         cl_uint4 coordinate = constructCoord(y, x, imageWidth);
         cl_uint4 nearest = voronoi
           .entries[coordinate.v4[2]]
           .nearestBackground;
+        
         float distance = euclideanDistance(coordinate, nearest);
-        imageOut[coordinate.v4[2]] = floatToPixVal(distance / maxDistance);
+        m_output[coordinate.v4[2]] = floatToPixVal(distance / maxDistance);
       }
     free(voronoi.entries);
-    stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, imageOut);
-    free(imageOut);
+    stbi_write_bmp("result.bmp", imageWidth, imageHeight, 1, m_output);
   }
 
   ~ExecuteDT() {
@@ -154,7 +153,7 @@ public:
 private:
   const std::string m_filename;
   unsigned char *m_image;
-  float *m_output;
+  unsigned char *m_output;
 
   static std::string readKernel() {
     std::ifstream input("kernel.cl");
