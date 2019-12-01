@@ -9,7 +9,7 @@
  * geral.
 */
 cl_uint4 constructCoord(unsigned int y, unsigned int x, unsigned int imageWidth) {
-  cl_uint4 coord{y, x, y*imageWidth + x};
+  cl_uint4 coord{x, y, y*imageWidth + x};
 
   return coord;
 }
@@ -35,6 +35,8 @@ cl_uint4 constructPixel(const cl_uint4 coord, const cl_uint value) {
   
   return pixel;
 }
+
+#define MAX_NEIGHBORHOOD 8
 
 typedef struct {
   // Há no máximo 8 vizinhos.
@@ -69,17 +71,17 @@ typedef struct {
 } UCImage;
 
 
-UCImage construcUCImage(unsigned char *image, const unsigned int height, const unsigned int width) {
+UCImage constructUCImage(unsigned char *image, const unsigned int height, const unsigned int width) {
   UCImage ucimage;
   ucimage.image = image;
-  ucimage.attrs.v2[0] = height;
-  ucimage.attrs.v2[1] = width;
+  ucimage.attrs.v2[0] = width;
+  ucimage.attrs.v2[1] = height;
 
   return ucimage;
 }
 
 cl_uchar getValueByCoord(const UCImage *image, const cl_uint4 coord) {
-  return image->image[coord.v4[0] * image->attrs.v2[1] + coord.v4[1]];
+  return image->image[coord.v4[1] * image->attrs.v2[0] + coord.v4[0]];
 }
 
 bool isBackgroudByCoord(const UCImage *image, const cl_uint4 coord) {
@@ -91,7 +93,7 @@ cl_uint4 getPixel(const UCImage *image, const cl_uint4 coordinate) {
 }
 
 cl_uint4 getPixelByCoord(const UCImage *image, cl_int y, cl_int x) {
-  const cl_uint4 coord = constructCoord(y, x, image->attrs.v2[1]);
+  const cl_uint4 coord = constructCoord(y, x, image->attrs.v2[0]);
   return getPixel(image, coord);
 }
 
@@ -107,15 +109,15 @@ Neighborhood getNeighborhood(const UCImage *image, const cl_uint4& pixel) {
   Neighborhood neighborhood;
   neighborhood.size = 0;
   for (cl_int i = -1; i < 2; i++) {
-    const cl_uint y = pixel.v4[0] - i;
-    if (y >= image->attrs.v2[0])
+    const cl_uint y = pixel.v4[1] - i;
+    if (y >= image->attrs.v2[1])
       continue;
 
     for (cl_int j = -1; j < 2; j++) {
       if (j == 0 && i == 0)
         continue;
-      const cl_uint x = pixel.v4[1] - j;
-      if (x < 0 || x >= image->attrs.v2[1])
+      const cl_uint x = pixel.v4[0] - j;
+      if (x < 0 || x >= image->attrs.v2[0])
         continue;
 
 

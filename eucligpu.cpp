@@ -13,14 +13,14 @@
 
 void sequentialDT(const UCImage *image, float *imageOutput) {
 
-  for(unsigned int x=0; x < image->attrs.v2[1]; ++x) {
-    for(unsigned int y=0; y < image->attrs.v2[0]; ++y) {
+  for(unsigned int x=0; x < image->attrs.v2[0]; ++x) {
+    for(unsigned int y=0; y < image->attrs.v2[1]; ++y) {
 
       float minDistance = std::numeric_limits<float>::max();
 
       cl_uint4 coord1 = constructCoord(y, x, image->attrs.v2[1]);
-      for(unsigned int innerX = 0; innerX < image->attrs.v2[1]; ++innerX) {
-        for(unsigned int innerY = 0; innerY < image->attrs.v2[0]; ++innerY) {
+      for(unsigned int innerX = 0; innerX < image->attrs.v2[0]; ++innerX) {
+        for(unsigned int innerY = 0; innerY < image->attrs.v2[1]; ++innerY) {
 
           const cl_uint4 coord2 = constructCoord(innerY, innerX, image->attrs.v2[1]);
 
@@ -33,7 +33,7 @@ void sequentialDT(const UCImage *image, float *imageOutput) {
           }
         }
       }
-      imageOutput[image->attrs.v2[1]*y + x] = minDistance;
+      imageOutput[image->attrs.v2[0]*y + x] = minDistance;
     }
   }
 
@@ -86,7 +86,7 @@ public:
       throw std::runtime_error("The image could not be loaded, please check if "
                                "the filename is corrected");
 
-    const UCImage image = construcUCImage(m_image, imageHeight, imageWidth);
+    const UCImage image = constructUCImage(m_image, imageHeight, imageWidth);
     const int imageSize = imageWidth * imageHeight;
 
     // Paralelo
@@ -111,6 +111,7 @@ public:
             const cl_uint4 pixel = neighborhood.pixels[i];
             if (!isBackgroudByCoord(&image, pixel)) {
               queue.push_back(coordinate);
+              break;
             }
           }
         } else {
