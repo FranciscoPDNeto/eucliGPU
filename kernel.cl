@@ -223,6 +223,12 @@ uint4 pop(__private uint4 *stack) {
   return returnValue;
 }
 
+uint4 cmpxchg(volatile __global uint4* p, uint4 cmp, uint4 val) {
+  uint4 old = *p;
+  *p = (old == cmp) ? val : old;
+  return old;
+}
+
 void __kernel euclidean(
   __global const unsigned char *image,
   const uint2 imageAttrs,
@@ -264,86 +270,42 @@ void __kernel euclidean(
 
   for (int i = 0; i < privatePixelQueueSize; i++) {
     uint4 p = lpixelQueue[privatePixelQueueOffset + i];
-    __global uint4 *area = &(voronoi[p.z].nearestBackground);
-    //uint4 coordinateP = constructCoord(p.y, p.x, p.z);
-
+    uint4 area = voronoi[p.z].nearestBackground;
     Neighborhood neighborhood = getNeighborhood(image, imageAttrs, p);
     for (int j = 0; j < neighborhood.size; j++) {
       uint4 q = neighborhood.pixels[j];
-      //uint4 coordinateQ = constructCoord(q.y, q.x, q.z);
-      __global uint4 *curVRQ = &(voronoi[q.z].nearestBackground);
+      uint4 curVRQ = voronoi[q.z].nearestBackground;
       volatile __global uint4 *voronoiValuePtr = getVoronoiValuePtr(voronoi, voronoiSize, q);
-      if (euclideanDistance(q, p) < euclideanDistance(q, *curVRQ)) {
-        do {
-
-            uint4 old;
-            //printf("Voronoi: %d %d %d", voronoiValuePtr->x, voronoiValuePtr->y, voronoiValuePtr->z);
-            *voronoiValuePtr = *area;
-            /*
-            old.x = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->x, 
-              curVRQ.x, area->x);
-            old.y = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->y, 
-              curVRQ.y, area->y);
-            old.z = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->z, 
-              curVRQ.z, area->z);
-            //printf("Voronoi after GPU: %d %d %d", voronoiValuePtr->x, voronoiValuePtr->y, voronoiValuePtr->z);
-
-            if (compareCoords(old, curVRQ)) {
-              
-              //exceededPixel[exceededPixelSize++] = q;
-              //push(exceededPixel, q);
-              printf("tchau");
-              break;
-            }
-            */
+      do {
+        if (euclideanDistance(q, p) < euclideanDistance(q, curVRQ)) {
+          uint4 old = cmpxchg(voronoiValuePtr, curVRQ, area);
+          if (compareCoords(old, curVRQ)) {
             push(exceededPixel, q);
-        } while (false);
-      }
+            break;
+          }
+        } else break;
+      } while (true);
     }
   }
 
   //int depth = 0;
   while(!empty(exceededPixel)) {
     uint4 p = pop(exceededPixel);
-    __global uint4 *area = &(voronoi[p.z].nearestBackground);
-    
+    uint4 area = voronoi[p.z].nearestBackground;
     Neighborhood neighborhood = getNeighborhood(image, imageAttrs, p);
     for (int j = 0; j < neighborhood.size; j++) {
       uint4 q = neighborhood.pixels[j];
-      //uint4 coordinateQ = constructCoord(q.y, q.x, q.z);
+      uint4 curVRQ = voronoi[q.z].nearestBackground;
+      volatile __global uint4 *voronoiValuePtr = getVoronoiValuePtr(voronoi, voronoiSize, q);
       do {
-        __global uint4 *curVRQ = &(voronoi[q.z].nearestBackground);
-
-        if (euclideanDistance(q, p) < euclideanDistance(q, *curVRQ)) {
-          uint4 old;
-          volatile __global uint4 *voronoiValuePtr = getVoronoiValuePtr(voronoi, voronoiSize, q);
-          *voronoiValuePtr = *area;
-          
-          //printf("Voronoi: %d %d %d", voronoiValuePtr->x, voronoiValuePtr->y, voronoiValuePtr->z);
-          /*
-          old.x = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->x, 
-            curVRQ.x, area->x);
-          old.y = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->y, 
-            curVRQ.y, area->y);
-          old.z = atomic_cmpxchg((volatile __global uint*)voronoiValuePtr->z, 
-            curVRQ.z, area->z);
-          //printf("Voronoi after GPU: %d %d %d", voronoiValuePtr->x, voronoiValuePtr->y, voronoiValuePtr->z);
-
+        if (euclideanDistance(q, p) < euclideanDistance(q, curVRQ)) {
+          uint4 old = cmpxchg(voronoiValuePtr, curVRQ, area);
           if (compareCoords(old, curVRQ)) {
-            //exceededPixel[exceededPixelSize++] = q;
-            //push(exceededPixel, q);
+            push(exceededPixel, q);
             break;
           }
-        } else
-          break;
-          */
-          //if (depth < 90000) {
-            push(exceededPixel, q);
-            //printf("enqueing element %d %d for element %d %d\n", q.x, q.y, p.x, p.y);
-            //depth++;
-          //}
-        }
-      } while (false);
+        } else break;
+      } while (true);
     }
   }
 }
