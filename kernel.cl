@@ -240,12 +240,16 @@ void __kernel euclidean(
   //printf("PixelQueueSize: %d\n", pixelQueueSize);
   // Wavefront propagation
   __local unsigned int localPixelQueueOffset;
-  localPixelQueueOffset = get_group_id(0)*(pixelQueueSize/get_num_groups(0));
   __local unsigned int localPixelQueueSize;
-  localPixelQueueSize = get_group_id(0) != (get_num_groups(0) - 1) ? 
-    (pixelQueueSize/get_num_groups(0)) 
-    : 
-    (pixelQueueSize/get_num_groups(0)) + (pixelQueueSize%get_num_groups(0));
+  if (get_group_id(0) == 0) {
+    localPixelQueueOffset = 0;
+    localPixelQueueSize = 
+      (pixelQueueSize/get_num_groups(0)) + (pixelQueueSize%get_num_groups(0));
+  } else {
+    localPixelQueueOffset = 
+      get_group_id(0)*(pixelQueueSize/get_num_groups(0)) + (pixelQueueSize%get_num_groups(0));
+    localPixelQueueSize = (pixelQueueSize/get_num_groups(0));
+  }
 
   __private unsigned int privatePixelQueueOffset = get_local_id(0)*(localPixelQueueSize/get_local_size(0));
   __private unsigned int privatePixelQueueSize = get_local_id(0) != (get_local_size(0) - 1) ? 

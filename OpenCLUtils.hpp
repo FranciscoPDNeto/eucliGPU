@@ -183,7 +183,7 @@ void executeOpenCL(const std::string &kernelName,
   if (errorCode != CL_SUCCESS)
     throw std::runtime_error(getErrorString(errorCode));
   
-  const int localSize = 4;
+  const int localSize = 32;
   const unsigned int pixelQueueSize = pixelQueue.size();
   cl::Kernel kernel(program, kernelName.c_str());
   kernel.setArg(0, inputBuffer);
