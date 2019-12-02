@@ -168,7 +168,7 @@ bool compareCoords(const uint4 coord1, const uint4 coord2) {
 bool push(__private uint4 *stack, uint4 value) {
   // pushing from bot, so you can pop it from top later (FIFO)
   // circular buffer for top performance
-  uint bufLen=100*100*8*10;
+  uint bufLen=64;
   // zeroth element is counter for newest added element
   // first element is oldest element
 
@@ -198,7 +198,7 @@ uint size(__private uint4 *stack) {
 }
 
 uint4 front(__private uint4 *stack) {
-  uint bufLen=100*100*8*10;
+  uint bufLen=64;
 
   // oldest element value (top)
   uint ptr=stack[0].y%bufLen+1; // circular adr + 1 header
@@ -208,7 +208,7 @@ uint4 front(__private uint4 *stack) {
 }
 
 uint4 pop(__private uint4 *stack) {
-  uint bufLen=100*100*8*10;
+  uint bufLen=64;
   uint ptr=stack[0].y%bufLen+1;
   // pop from top (oldest)
   uint4 returnValue=stack[ptr];
@@ -234,7 +234,6 @@ void __kernel euclidean(
   const uint2 imageAttrs,
   __global uint4 *pixelQueue,
   const unsigned int pixelQueueSize,
-  __local uint4 *lpixelQueue,
   __global VoronoiDiagramMapEntry *voronoi,
   const unsigned int voronoiSize
 ) {
@@ -247,11 +246,6 @@ void __kernel euclidean(
     (pixelQueueSize/get_num_groups(0)) 
     : 
     (pixelQueueSize/get_num_groups(0)) + (pixelQueueSize%get_num_groups(0));
-  
-  //printf("LocalPixelQueueSize: %d\n", localPixelQueueSize);
-  //printf("Group: %d\n", get_group_id(0));
-  
-  async_work_group_copy(lpixelQueue, (pixelQueue+localPixelQueueOffset*get_group_id(0)), localPixelQueueSize, 0);
 
   __private unsigned int privatePixelQueueOffset = get_local_id(0)*(localPixelQueueSize/get_local_size(0));
   __private unsigned int privatePixelQueueSize = get_local_id(0) != (get_local_size(0) - 1) ? 
@@ -264,12 +258,12 @@ void __kernel euclidean(
   // q cada píxel pode ter.
   // Fila circular de pixels excedidos com tamanho máximo de 100, e o primeiro elemento x e y indica o inicio e fim
   // da fila respectivamente.
-  uint4 exceededPixel[100*100*8];
+  uint4 exceededPixel[64];
   exceededPixel[0].x = 0;
   exceededPixel[0].y = 0;
 
   for (int i = 0; i < privatePixelQueueSize; i++) {
-    uint4 p = lpixelQueue[privatePixelQueueOffset + i];
+    uint4 p = pixelQueue[localPixelQueueOffset*get_group_id(0)+privatePixelQueueOffset + i];
     uint4 area = voronoi[p.z].nearestBackground;
     Neighborhood neighborhood = getNeighborhood(image, imageAttrs, p);
     for (int j = 0; j < neighborhood.size; j++) {
@@ -288,7 +282,6 @@ void __kernel euclidean(
     }
   }
 
-  //int depth = 0;
   while(!empty(exceededPixel)) {
     uint4 p = pop(exceededPixel);
     uint4 area = voronoi[p.z].nearestBackground;

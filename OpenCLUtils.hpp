@@ -183,16 +183,15 @@ void executeOpenCL(const std::string &kernelName,
   if (errorCode != CL_SUCCESS)
     throw std::runtime_error(getErrorString(errorCode));
   
-  const int localSize = 32;
+  const int localSize = 4;
   const unsigned int pixelQueueSize = pixelQueue.size();
   cl::Kernel kernel(program, kernelName.c_str());
   kernel.setArg(0, inputBuffer);
   kernel.setArg(1, sizeof(cl_uint2), &image->attrs);
   kernel.setArg(2, inputQueueBuffer);
   kernel.setArg(3, sizeof(unsigned int), &pixelQueueSize);
-  kernel.setArg(4, cl::Local(pixelQueue.size()/localSize + pixelQueue.size()%localSize));
-  kernel.setArg(5, outputVoronoiBuffer);
-  kernel.setArg(6, sizeof(unsigned int), &voronoi->sizeOfDiagram);
+  kernel.setArg(4, outputVoronoiBuffer);
+  kernel.setArg(5, sizeof(unsigned int), &voronoi->sizeOfDiagram);
 
   errorCode = queue.enqueueNDRangeKernel(kernel, 0, imageSize, localSize);
   if (errorCode != CL_SUCCESS)
