@@ -22,7 +22,7 @@ uint4 constructInvalidCoord() {
  * \brief Calcula a distância euclideana.
 */
 float euclideanDistance(const uint4 coord1, const uint4 coord2) {
-  return sqrt((float)(coord1.y - coord2.y)*(coord1.y - coord2.y) + (coord1.x - coord2.x)*(coord1.x - coord2.x));
+  return sqrt(((float) coord1.y - coord2.y)*((float) coord1.y - coord2.y) + ((float) coord1.x - coord2.x)*((float) coord1.x - coord2.x));
 }
 
 /**
@@ -277,7 +277,7 @@ void __kernel euclidean(
       uint4 curVRQ = voronoi[q.z].nearestBackground;
       volatile __global uint4 *voronoiValuePtr = getVoronoiValuePtr(voronoi, voronoiSize, q);
       do {
-        if (euclideanDistance(q, p) < euclideanDistance(q, curVRQ)) {
+        if (euclideanDistance(q, area) < euclideanDistance(q, curVRQ)) {
           uint4 old = cmpxchg(voronoiValuePtr, curVRQ, area);
           if (compareCoords(old, curVRQ)) {
             push(exceededPixel, q);
@@ -298,7 +298,7 @@ void __kernel euclidean(
       uint4 curVRQ = voronoi[q.z].nearestBackground;
       volatile __global uint4 *voronoiValuePtr = getVoronoiValuePtr(voronoi, voronoiSize, q);
       do {
-        if (euclideanDistance(q, p) < euclideanDistance(q, curVRQ)) {
+        if (euclideanDistance(q, area) < euclideanDistance(q, curVRQ)) {
           uint4 old = cmpxchg(voronoiValuePtr, curVRQ, area);
           if (compareCoords(old, curVRQ)) {
             push(exceededPixel, q);
